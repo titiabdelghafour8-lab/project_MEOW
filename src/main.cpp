@@ -1,6 +1,7 @@
 #include <cmath>
 #include <SDL3/SDL.h>
 #include <vector>
+#include <ctime>
 #include <iostream>
 
 constexpr int SCREEN_WIDTH = 800;
@@ -15,6 +16,8 @@ constexpr Uint32 COLOR_BLUE = 0xFFFF0000;
 void draw_line(int ax, int ay, int bx, int by, std::vector<Uint32>& pixels, Uint32 color);
 
 int main(int, char**) {
+    // PRNG
+    std::srand(std::time(nullptr));
     // 1. Initialize SDL3 video subsystem
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::cout << "SDL_Init Error: " << SDL_GetError() << "\n";
@@ -59,10 +62,20 @@ int main(int, char**) {
                 is_running = false;
             }
         }
+        std::fill(pixels.begin(), pixels.end(), 0xFF000000);
 
         // TODO: DRAW STUFF
-        draw_line(0, 0, 800, 600, pixels, COLOR_RED);
-        draw_line(0, 600, 800, 0, pixels, COLOR_YELLOW);
+        for (int i { 0 }; i < 500; i++)
+        {
+            int ax { std::rand() % SCREEN_WIDTH};
+            int ay { std::rand() % SCREEN_HEIGHT};
+            int bx { std::rand() % SCREEN_WIDTH};
+            int by { std::rand() % SCREEN_HEIGHT};
+            Uint32 random_color { static_cast<Uint32>(rand() % 2000000000) };
+
+            draw_line(ax, ay, bx, by, pixels, random_color);
+        }
+
 
 
         // Update the SDL texture with our pixel buffer data
@@ -95,16 +108,19 @@ void draw_line(int ax, int ay, int bx, int by, std::vector<Uint32>& pixels, Uint
         std::swap(ay, by);
         std::swap(ax, bx);
     }
+    int y { ay };
+    int normalized_error { 0 };
     for (int x { ax }; x <= bx; x++)
     {
-        float t = static_cast<float>(x - ax) / static_cast<float>(bx - ax);
-        int y { static_cast<int>(std::round(ay + t * (by - ay))) };
         if (steep > 0)
         {
             pixels[x * SCREEN_WIDTH + y] = color;
-        }else
+        }else if (steep < 0)
         {
             pixels[y * SCREEN_WIDTH + x] = color;
         }
+        normalized_error += 2 * std::abs(by - ay);
+        y += (normalized_error > (bx - ax)) * (ay < by ? 1 : -1);
+        normalized_error -= (normalized_error > (bx - ax)) * 2 * (bx - ax);
     }
 }
