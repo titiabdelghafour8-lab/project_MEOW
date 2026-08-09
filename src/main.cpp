@@ -1,81 +1,110 @@
-#include <GLFW/glfw3.h>
-#include <iostream>
+#include <cmath>
+#include <SDL3/SDL.h>
 #include <vector>
-#include <cstdint>
+#include <iostream>
 
-constexpr int WIDTH = 800;
-constexpr int HEIGHT = 600;
+constexpr int SCREEN_WIDTH = 800;
+constexpr int SCREEN_HEIGHT = 600;
+// colors
+constexpr Uint32 COLOR_GREEN = 0xFF00FF00;
+constexpr Uint32 COLOR_RED = 0xFF0000FF;
+constexpr Uint32 COLOR_YELLOW = COLOR_RED | COLOR_GREEN;
+constexpr Uint32 COLOR_BLUE = 0xFFFF0000;
 
-// Pixel color helper (RGBA packed into 32-bit integer)
-uint32_t create_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255) {
-    return (a << 24) | (b << 16) | (g << 8) | r;
-}
 
-int main() {
-    if (!glfwInit()) {
-        std::cerr << "Failed to initialize GLFW\n";
-        return -1;
+void draw_line(int ax, int ay, int bx, int by, std::vector<Uint32>& pixels, Uint32 color);
+
+int main(int, char**) {
+    // 1. Initialize SDL3 video subsystem
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        std::cout << "SDL_Init Error: " << SDL_GetError() << "\n";
+        return 1;
     }
 
-    GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "C++ Software Rasterizer", NULL, NULL);
+    // 2. Create Window and Renderer
+    SDL_Window* window = SDL_CreateWindow("Software Rasterizer", SCREEN_WIDTH, SCREEN_HEIGHT, 0);
     if (!window) {
-        std::cerr << "Failed to create GLFW window\n";
-        glfwTerminate();
-        return -1;
+        std::cout << "SDL_CreateWindow Error: " << SDL_GetError() << "\n";
+        SDL_Quit();
+        return 1;
     }
 
-    glfwMakeContextCurrent(window);
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
+    if (!renderer) {
+        std::cout << "SDL_CreateRenderer Error: " << SDL_GetError() << "\n";
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
 
-    // Our CPU Framebuffer: flat array storing WIDTH * HEIGHT pixels
-    std::vector<uint32_t> framebuffer(WIDTH * HEIGHT, 0);
+    // 3. Create a streaming texture to hold our pixel buffer (RGBA format)
+    SDL_Texture* texture = SDL_CreateTexture(
+        renderer,
+        SDL_PIXELFORMAT_ABGR8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT
+    );
 
-    // Create OpenGL Texture to display our raw CPU pixel buffer
-    GLuint texture_id;
-    glGenTextures(1, &texture_id);
-    glBindTexture(GL_TEXTURE_2D, texture_id);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    // 4. Allocate a CPU-side pixel buffer for your rasterizer to draw into
+    std::vector<Uint32> pixels(SCREEN_WIDTH * SCREEN_HEIGHT, 0xFF000000); // Initialized to opaque black
 
-    while (!glfwWindowShouldClose(window)) {
-        glfwPollEvents();
+    bool is_running = true;
+    SDL_Event event;
 
-        // -------------------------------------------------------------
-        // 1. RASTERIZER CLEAR & DRAW STEP
-        // -------------------------------------------------------------
-        // Clear framebuffer (Black background)
-        std::fill(framebuffer.begin(), framebuffer.end(), create_rgba(20, 20, 20));
-
-        // Draw a procedural test pattern directly into raw memory
-        for (int y = 0; y < HEIGHT; ++y) {
-            for (int x = 0; x < WIDTH; ++x) {
-                // Example: Draw a gradient
-                uint8_t r = static_cast<uint8_t>((float)x / WIDTH * 255);
-                uint8_t g = static_cast<uint8_t>((float)y / HEIGHT * 255);
-
-                // Write pixel directly to the flat 1D index
-                framebuffer[y * WIDTH + x] = create_rgba(r, g, 128);
+    while (is_running) {
+        // Handle window events (like closing the window)
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_EVENT_QUIT) {
+                is_running = false;
             }
         }
 
-        // -------------------------------------------------------------
-        // 2. DISPLAY STEP (Pass CPU buffer to GPU Texture & render quad)
-        // -------------------------------------------------------------
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, WIDTH, HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, framebuffer.data());
+        // TODO: DRAW STUFF
+        draw_line(0, 0, 800, 600, pixels, COLOR_RED);
+        draw_line(0, 600, 800, 0, pixels, COLOR_YELLOW);
 
-        glEnable(GL_TEXTURE_2D);
-        glBegin(GL_QUADS);
-            glTexCoord2f(0.0f, 1.0f); glVertex2f(-1.0f, -1.0f); // Bottom-left
-            glTexCoord2f(1.0f, 1.0f); glVertex2f( 1.0f, -1.0f); // Bottom-right
-            glTexCoord2f(1.0f, 0.0f); glVertex2f( 1.0f,  1.0f); // Top-right
-            glTexCoord2f(0.0f, 0.0f); glVertex2f(-1.0f,  1.0f); // Top-left
-        glEnd();
 
-        glfwSwapBuffers(window);
+        // Update the SDL texture with our pixel buffer data
+        SDL_UpdateTexture(texture, nullptr, pixels.data(), SCREEN_WIDTH * sizeof(Uint32));
+        SDL_RenderTexture(renderer, texture, nullptr, nullptr);
+        SDL_RenderPresent(renderer);
     }
 
-    glDeleteTextures(1, &texture_id);
-    glfwDestroyWindow(window);
-    glfwTerminate();
+
+    // Cleanup
+    SDL_DestroyTexture(texture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 
     return 0;
+}
+
+void draw_line(int ax, int ay, int bx, int by, std::vector<Uint32>& pixels, Uint32 color)
+{
+    int steep = abs(ay - by) - abs(ax - bx);
+    if (steep > 0)
+    {
+        std::swap(ax, ay);
+        std::swap(bx, by);
+    }
+    int a_precede_b = bx - ax;
+    if (a_precede_b < 0)
+    {
+        std::swap(ay, by);
+        std::swap(ax, bx);
+    }
+    for (int x { ax }; x <= bx; x++)
+    {
+        float t = static_cast<float>(x - ax) / static_cast<float>(bx - ax);
+        int y { static_cast<int>(std::round(ay + t * (by - ay))) };
+        if (steep > 0)
+        {
+            pixels[x * SCREEN_WIDTH + y] = color;
+        }else
+        {
+            pixels[y * SCREEN_WIDTH + x] = color;
+        }
+    }
 }

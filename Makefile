@@ -1,41 +1,35 @@
-# Compiler and flags
 CXX      := g++
-CXXFLAGS := -std=c++20 -Wall -Wextra -O2
+CXXFLAGS := -std=c++23 -Wall -Wextra -O3 -Werror
+SDL_CFLAGS := $(shell pkg-config --cflags sdl3)
+SDL_LIBS   := $(shell pkg-config --libs sdl3)
 
-# Include paths and libraries
-INCLUDES := -I./src
-LIBS     := -lglfw -lGL -lm -lpthread -ldl
-
-# Directories
 SRC_DIR  := src
-BUILD_DIR:= build
-TARGET   := $(BUILD_DIR)/rasterizer
-
-# Find all .cpp files inside src/
+BUILD_DIR := build
+EXEC     := rasterizer
 SRCS     := $(wildcard $(SRC_DIR)/*.cpp)
 OBJS     := $(patsubst $(SRC_DIR)/%.cpp, $(BUILD_DIR)/%.o, $(SRCS))
 
-# Default rule
-all: $(TARGET)
+# DEFAULT TARGET
+all: $(BUILD_DIR) $(EXEC)
 
-# Link final executable
-$(TARGET): $(OBJS) | $(BUILD_DIR)
-	$(CXX) $(OBJS) -o $@ $(LIBS)
-
-# Compile C++ source files into object files
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
-
-# Create build directory
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# Run the program
-run: $(TARGET)
-	./$(TARGET)
+# LINK
+$(EXEC): $(OBJS)
+	$(CXX) $(OBJS) -o $(BUILD_DIR)/$(EXEC) $(SDL_LIBS)
 
-# Clean build artifacts
+# COMPILE
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
+	$(CXX) -c $(CXXFLAGS) $(SDL_CFLAGS) $< -o $@
+
+# CLEAN
 clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all run clean
+# RUN
+run: all
+	./$(BUILD_DIR)/$(EXEC)
+
+.PHONY: all clean run
+
