@@ -56,7 +56,13 @@ int main(int, char**) {
 
 
     // Load file and its data
-    std::ifstream african_head_obj("african_head.obj");
+    std::ifstream african_head_obj("./src/african_head.obj");
+    if (!african_head_obj.is_open())
+    {
+        std::cout << "Could not open file: " << SDL_GetError() << "\n";
+        SDL_Quit();
+        return 1;
+    }
     ObjParser::ObjElementData african_head_data {};
     ObjParser::parse_obj_file(african_head_obj, african_head_data);
 

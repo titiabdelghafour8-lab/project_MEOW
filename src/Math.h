@@ -17,7 +17,7 @@ namespace Math
     {
         Vec2<int> projected_pixel_position {
             static_cast<int>((v.x + 1.) * width / 2),
-            static_cast<int>((v.y + 1.) * height / 2)
+            static_cast<int>(height - (v.y + 1.) * height / 2)
         };
         return projected_pixel_position;
     }

@@ -20,8 +20,8 @@ namespace ObjParser
             : m_v(v), m_f(f) {}
         ObjElementData() = default;
         [[nodiscard]] size_t vertices_count() const { return m_v.size(); }
-        [[nodiscard]] std::vector<std::array<int, 3>> faces() const { return m_f; }
-        [[nodiscard]] std::vector<Vec3> vertices() const { return m_v; }
+        [[nodiscard]] const std::vector<std::array<int, 3>>& faces() const { return m_f; }
+        [[nodiscard]] const std::vector<Vec3>& vertices() const { return m_v; }
 
     };
 
