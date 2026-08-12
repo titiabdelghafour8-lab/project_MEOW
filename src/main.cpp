@@ -1,8 +1,11 @@
 #include <cmath>
 #include <SDL3/SDL.h>
 #include <vector>
-#include <ctime>
 #include <iostream>
+#include <fstream>
+#include "Color.h"
+#include "Math.h"
+#include "OBJParser.h"
 
 constexpr int SCREEN_WIDTH = 800;
 constexpr int SCREEN_HEIGHT = 600;
@@ -14,17 +17,16 @@ constexpr Uint32 COLOR_BLUE = 0xFFFF0000;
 
 
 void draw_line(int ax, int ay, int bx, int by, std::vector<Uint32>& pixels, Uint32 color);
+void draw_wireframe(const ObjParser::ObjElementData& obj_data, std::vector<Uint32>& pixels, const Uint32& color);
 
 int main(int, char**) {
-    // PRNG
-    std::srand(std::time(nullptr));
-    // 1. Initialize SDL3 video subsystem
+    // Initialize SDL3 video subsystem
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::cout << "SDL_Init Error: " << SDL_GetError() << "\n";
         return 1;
     }
 
-    // 2. Create Window and Renderer
+    // Create Window and Renderer
     SDL_Window* window = SDL_CreateWindow("Software Rasterizer", SCREEN_WIDTH, SCREEN_HEIGHT, 0);
     if (!window) {
         std::cout << "SDL_CreateWindow Error: " << SDL_GetError() << "\n";
@@ -40,7 +42,7 @@ int main(int, char**) {
         return 1;
     }
 
-    // 3. Create a streaming texture to hold our pixel buffer (RGBA format)
+    // Create a streaming texture to hold our pixel buffer (RGBA format)
     SDL_Texture* texture = SDL_CreateTexture(
         renderer,
         SDL_PIXELFORMAT_ABGR8888,
@@ -49,8 +51,14 @@ int main(int, char**) {
         SCREEN_HEIGHT
     );
 
-    // 4. Allocate a CPU-side pixel buffer for your rasterizer to draw into
+    // Allocate a CPU-side pixel buffer for your rasterizer to draw into
     std::vector<Uint32> pixels(SCREEN_WIDTH * SCREEN_HEIGHT, 0xFF000000); // Initialized to opaque black
+
+
+    // Load file and its data
+    std::ifstream african_head_obj("african_head.obj");
+    ObjParser::ObjElementData african_head_data {};
+    ObjParser::parse_obj_file(african_head_obj, african_head_data);
 
     bool is_running = true;
     SDL_Event event;
@@ -65,17 +73,7 @@ int main(int, char**) {
         std::fill(pixels.begin(), pixels.end(), 0xFF000000);
 
         // TODO: DRAW STUFF
-        for (int i { 0 }; i < 500; i++)
-        {
-            int ax { std::rand() % SCREEN_WIDTH};
-            int ay { std::rand() % SCREEN_HEIGHT};
-            int bx { std::rand() % SCREEN_WIDTH};
-            int by { std::rand() % SCREEN_HEIGHT};
-            Uint32 random_color { static_cast<Uint32>(rand() % 2000000000) };
-
-            draw_line(ax, ay, bx, by, pixels, random_color);
-        }
-
+        draw_wireframe(african_head_data, pixels, getColor(255, 0, 0, 255));
 
 
         // Update the SDL texture with our pixel buffer data
@@ -122,5 +120,24 @@ void draw_line(int ax, int ay, int bx, int by, std::vector<Uint32>& pixels, Uint
         normalized_error += 2 * std::abs(by - ay);
         y += (normalized_error > (bx - ax)) * (ay < by ? 1 : -1);
         normalized_error -= (normalized_error > (bx - ax)) * 2 * (bx - ax);
+    }
+}
+void draw_wireframe(const ObjParser::ObjElementData& obj_data, std::vector<Uint32>& pixels, const Uint32& color)
+{
+    for (std::array<int, 3> face_indices: obj_data.faces())
+    {
+        Math::Vec2<int> vertex_a {
+            Math::viewport_projection(obj_data.vertices()[face_indices[0]],SCREEN_WIDTH, SCREEN_HEIGHT)
+        };
+        Math::Vec2<int> vertex_b {
+            Math::viewport_projection(obj_data.vertices()[face_indices[1]], SCREEN_WIDTH, SCREEN_HEIGHT)
+        };
+        Math::Vec2<int> vertex_c {
+            Math::viewport_projection(obj_data.vertices()[face_indices[2]], SCREEN_WIDTH, SCREEN_HEIGHT)
+        };
+
+        draw_line(vertex_a.x, vertex_a.y, vertex_b.x, vertex_b.y, pixels, color);
+        draw_line(vertex_b.x, vertex_b.y, vertex_c.x, vertex_c.y, pixels, color);
+        draw_line(vertex_c.x, vertex_c.y, vertex_a.x, vertex_a.y, pixels, color);
     }
 }
