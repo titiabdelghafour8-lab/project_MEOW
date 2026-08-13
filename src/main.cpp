@@ -6,6 +6,8 @@
 #include "Color.h"
 #include "Math.h"
 #include "OBJParser.h"
+#include <algorithm>
+#include <random>
 
 constexpr int SCREEN_WIDTH = 800;
 constexpr int SCREEN_HEIGHT = 600;
@@ -18,6 +20,9 @@ constexpr Uint32 COLOR_BLUE = 0xFFFF0000;
 
 void draw_line(int ax, int ay, int bx, int by, std::vector<Uint32>& pixels, Uint32 color);
 void draw_wireframe(const ObjParser::ObjElementData& obj_data, std::vector<Uint32>& pixels, const Uint32& color);
+void draw_triangle(int ax, int ay, int bx, int by, int cx, int cy, std::vector<Uint32>& pixels, const Uint32& color);
+void fill_triangle(int ax, int ay, int bx, int by, int cx, int cy, std::vector<Uint32>& pixels, const Uint32& color);
+
 
 int main(int, char**) {
     // Initialize SDL3 video subsystem
@@ -56,7 +61,7 @@ int main(int, char**) {
 
 
     // Load file and its data
-    std::ifstream african_head_obj("./src/african_head.obj");
+std::ifstream african_head_obj("./src/diablo3_pose.obj");
     if (!african_head_obj.is_open())
     {
         std::cout << "Could not open file: " << SDL_GetError() << "\n";
@@ -79,10 +84,9 @@ int main(int, char**) {
         std::fill(pixels.begin(), pixels.end(), 0xFF000000);
 
         // TODO: DRAW STUFF
-        draw_wireframe(african_head_data, pixels, getColor(255, 0, 0, 255));
+        ObjParser::parse_obj_file(african_head_obj, african_head_data);
+        draw_wireframe(african_head_data, pixels, COLOR_RED);
 
-
-        // Update the SDL texture with our pixel buffer data
         SDL_UpdateTexture(texture, nullptr, pixels.data(), SCREEN_WIDTH * sizeof(Uint32));
         SDL_RenderTexture(renderer, texture, nullptr, nullptr);
         SDL_RenderPresent(renderer);
@@ -119,7 +123,8 @@ void draw_line(int ax, int ay, int bx, int by, std::vector<Uint32>& pixels, Uint
         if (steep > 0)
         {
             pixels[x * SCREEN_WIDTH + y] = color;
-        }else if (steep < 0)
+        }
+        else
         {
             pixels[y * SCREEN_WIDTH + x] = color;
         }
@@ -142,8 +147,101 @@ void draw_wireframe(const ObjParser::ObjElementData& obj_data, std::vector<Uint3
             Math::viewport_projection(obj_data.vertices()[face_indices[2]], SCREEN_WIDTH, SCREEN_HEIGHT)
         };
 
-        draw_line(vertex_a.x, vertex_a.y, vertex_b.x, vertex_b.y, pixels, color);
-        draw_line(vertex_b.x, vertex_b.y, vertex_c.x, vertex_c.y, pixels, color);
-        draw_line(vertex_c.x, vertex_c.y, vertex_a.x, vertex_a.y, pixels, color);
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<int> distrib(0, 255);     // Update the SDL texture with our pixel buffer data
+        int r {distrib(gen)}, g {distrib(gen)}, b {distrib(gen)}, a {distrib(gen)};
+        draw_triangle(vertex_a.x, vertex_a.y, vertex_b.x, vertex_b.y, vertex_c.x, vertex_c.y, pixels, getColor(r, g, b, a));
+    }
+}
+
+void draw_triangle(int ax, int ay, int bx, int by, int cx, int cy, std::vector<Uint32>& pixels, const Uint32& color)
+{
+    draw_line(ax, ay, bx, by, pixels, color); //draw AB
+    draw_line(bx, by, cx, cy, pixels, color); //draw BC
+    draw_line(cx, cy, ax, ay, pixels, color); //draw CA
+    fill_triangle(ax, ay, bx, by, cx, cy, pixels, color);
+}
+void fill_triangle(int ax, int ay, int bx, int by, int cx, int cy, std::vector<Uint32>& pixels, const Uint32& color)
+{
+    std::array<std::tuple<int,int>, 3> vertices {
+        std::tuple<int, int>{ax, ay},
+         std::tuple<int, int> {bx, by},
+         std::tuple<int, int> {cx, cy}
+    };
+    std::sort(
+        vertices.begin(),
+        vertices.end(),
+        [](const auto& a, const auto& b) { return std::get<1>(a) < std::get<1>(b); }
+        );
+    int x0 = std::get<0>(vertices[0]); int y0 = std::get<1>(vertices[0]);
+    int x1 = std::get<0>(vertices[1]); int y1 = std::get<1>(vertices[1]);
+    int x2 = std::get<0>(vertices[2]); int y2 = std::get<1>(vertices[2]);
+    int d1{ (y1 - y0) == 0 ? 1: y1 - y0 };
+    int d2{ (y2 - y0) == 0 ? 1: y2 - y0 };
+    int d3{ (y2 - y1) == 0 ? 1: y2 - y1 };
+
+    int first_yposition { std::max(0, y0) };
+    int final_yposition { std::min(SCREEN_HEIGHT - 1, y2) };
+    for (int y { first_yposition };y <= final_yposition;y++)
+    {
+        if (y < y0 || y > y2) continue; // triangle bounds along the y axis
+        if (y <= y1)
+        {
+            if (y1 == y0) continue; //flat surface no need to paint
+
+            int first_xposition { x0 + (y - y0) *  (x1 - x0) / d1};
+            int second_xposition { x0 + (y - y0) * (x2 - x0) / d2};
+            if (first_xposition > second_xposition)
+            {
+                std::swap(first_xposition, second_xposition);
+            }
+            first_xposition = std::max(0, first_xposition);
+            second_xposition = std::min(SCREEN_WIDTH - 1, second_xposition);
+            for (int x {first_xposition}; x <= second_xposition;x++)
+            {
+                pixels[y * SCREEN_WIDTH + x] = color;
+            }
+        }
+        else
+        {
+            if (x1 < x2)
+            {
+                if (y2 == y1) continue; //flat surface no need to paint
+
+                int first_xposition { x1 + (y - y1) *  (x2 - x1) / d3};
+                int second_xposition { x0 + (y - y0) *  (x2 - x0) / d2};
+
+                if (first_xposition > second_xposition)
+                {
+                    std::swap(first_xposition, second_xposition);
+                }
+                first_xposition = std::max(0, first_xposition);
+                second_xposition = std::min(SCREEN_WIDTH - 1, second_xposition);
+
+                for (int x {first_xposition}; x <= second_xposition;x++)
+                {
+                    pixels[y * SCREEN_WIDTH + x] = color;
+                }
+            }
+            else
+            {
+                int first_xposition { x0 + (y - y0) *  (x2 - x0) / d2};
+                int second_xposition { x1 + (y - y1) * (x2 - x1) / d3};
+
+                if (first_xposition > second_xposition)
+                {
+                    std::swap(first_xposition, second_xposition);
+                }
+                first_xposition = std::max(0, first_xposition);
+                second_xposition = std::min(SCREEN_WIDTH - 1, second_xposition);
+
+                for (int x {first_xposition}; x <= second_xposition;x++)
+                {
+                    pixels[y * SCREEN_WIDTH + x] = color;
+                }
+
+            }
+        }
     }
 }
