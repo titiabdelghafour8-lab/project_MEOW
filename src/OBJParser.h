@@ -1,4 +1,5 @@
-#pragma once
+    #pragma once
+#include <algorithm>
 #include <fstream>
 #include <vector>
 #include <sstream>
@@ -54,5 +55,13 @@ namespace ObjParser
                 obj_data.m_f.push_back(indices);
             }
         }
+
+        std::sort(obj_data.m_f.begin(), obj_data.m_f.end(), [&](const std::array<int, 3>& a, const std::array<int, 3>& b)
+        {
+            float z_a = std::max({obj_data.m_v[a[0]].z, obj_data.m_v[a[1]].z, obj_data.m_v[a[2]].z});
+            float z_b = std::max({obj_data.m_v[b[0]].z, obj_data.m_v[b[1]].z, obj_data.m_v[b[2]].z});
+
+            return z_a < z_b;
+        });
     }
 };

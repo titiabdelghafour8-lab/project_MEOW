@@ -19,8 +19,8 @@ const Uint32 COLOR_BLUE = getColor(0, 0, 255, 255);
 
 
 void draw_line(int ax, int ay, int bx, int by, std::vector<Uint32>& pixels, Uint32 color);
-void draw_wireframe(const ObjParser::ObjElementData& obj_data, std::vector<Uint32>& pixels, const Uint32& color);
-void draw_triangle(int ax, int ay, int bx, int by, int cx, int cy, std::vector<Uint32>& pixels, const Uint32& color);
+void draw_wireframe(const ObjParser::ObjElementData& obj_data, std::vector<Uint32>& pixels, std::vector<int>& z_buffer, const Uint32& color);
+void draw_triangle(int ax, int ay, int az, int bx, int by, int bz, int cx, int cy, int cz, std::vector<Uint32>& pixels, std::vector<int>& z_buffer,const Uint32& color);
 
 
 int main(int, char**) {
@@ -57,6 +57,7 @@ int main(int, char**) {
 
     // Allocate a CPU-side pixel buffer for your rasterizer to draw into
     std::vector<Uint32> pixels(SCREEN_WIDTH * SCREEN_HEIGHT, 0xFF000000); // Initialized to opaque black
+    std::vector<int> z_buffer(SCREEN_WIDTH * SCREEN_HEIGHT, -1);
 
 
     // Load file and its data
@@ -83,10 +84,12 @@ int main(int, char**) {
         std::fill(pixels.begin(), pixels.end(), 0xFF000000);
 
         // TODO: DRAW STUFF
-        int ax = 400, ay = 100;
-        int bx = 150, by = 500;
-        int cx = 650, cy = 500;
-        draw_triangle(ax, ay, bx, by, cx, cy, pixels, COLOR_BLUE);
+        std::fill(z_buffer.begin(), z_buffer.end(), -1);
+        // int ax = 400, ay = 100;
+        // int bx = 150, by = 500;
+        // int cx = 650, cy = 500;
+        // draw_triangle(ax, ay, bx, by, cx, cy, pixels, COLOR_RED);
+        draw_wireframe(african_head_data, pixels, z_buffer, COLOR_RED);
 
         SDL_UpdateTexture(texture, nullptr, pixels.data(), SCREEN_WIDTH * sizeof(Uint32));
         SDL_RenderTexture(renderer, texture, nullptr, nullptr);
@@ -134,35 +137,39 @@ void draw_line(int ax, int ay, int bx, int by, std::vector<Uint32>& pixels, Uint
         normalized_error -= (normalized_error > (bx - ax)) * 2 * (bx - ax);
     }
 }
-void draw_wireframe(const ObjParser::ObjElementData& obj_data, std::vector<Uint32>& pixels, const Uint32& color)
+void draw_wireframe(const ObjParser::ObjElementData& obj_data, std::vector<Uint32>& pixels, std::vector<int>& z_buffer,const Uint32& color)
 {
-    for (std::array<int, 3> face_indices: obj_data.faces())
+    std::vector<std::array<int, 3>> faces { obj_data.faces() };
+
+    for (const auto& face_indices: faces)
     {
-        Math::Vec2<int> vertex_a {
+        Math::Vec3<int> vertex_a {
             Math::viewport_projection(obj_data.vertices()[face_indices[0]],SCREEN_WIDTH, SCREEN_HEIGHT)
         };
-        Math::Vec2<int> vertex_b {
+        Math::Vec3<int> vertex_b {
             Math::viewport_projection(obj_data.vertices()[face_indices[1]], SCREEN_WIDTH, SCREEN_HEIGHT)
         };
-        Math::Vec2<int> vertex_c {
+        Math::Vec3<int> vertex_c {
             Math::viewport_projection(obj_data.vertices()[face_indices[2]], SCREEN_WIDTH, SCREEN_HEIGHT)
         };
-
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<int> distrib(0, 255);
-        int r {distrib(gen)}, g {distrib(gen)}, b {distrib(gen)}, a {distrib(gen)};
-        draw_triangle(vertex_a.x, vertex_a.y, vertex_b.x, vertex_b.y, vertex_c.x, vertex_c.y, pixels, getColor(r, g, b, a));
+        float triangle_area {
+            Math::calculate_area_triangle(
+            {vertex_a.x, vertex_a.y},
+            {vertex_b.x, vertex_b.y},
+            {vertex_c.x, vertex_c.y})
+        };
+        if (triangle_area < 1e-5f) continue;
+        draw_triangle(vertex_a.x, vertex_a.y, vertex_a.z, vertex_b.x, vertex_b.y, vertex_b.z, vertex_c.x, vertex_c.y, vertex_c.z, pixels, z_buffer, COLOR_RED);
     }
 }
 
-void draw_triangle(int ax, int ay, int bx, int by, int cx, int cy, std::vector<Uint32>& pixels, const Uint32& color)
+void draw_triangle(int ax, int ay, int az, int bx, int by, int bz, int cx, int cy, int cz, std::vector<Uint32>& pixels, std::vector<int>& z_buffer,const Uint32& color)
 {
     Math::Vec2<int> A{ax, ay}, B{bx, by}, C{cx, cy};
     int bounding_x_min { std::clamp(std::min(std::min(A.x, B.x), C.x), 0, SCREEN_WIDTH - 1) };
-    int bounding_x_max { std::clamp(std::max(std::max(A.x, B.x), C.x), 0 ,SCREEN_WIDTH - 1 ) };
+    int bounding_x_max { std::clamp(std::max(std::max(A.x, B.x), C.x), 0 ,SCREEN_WIDTH - 1) };
     int bounding_y_min { std::clamp(std::min(std::min(A.y, B.y), C.y), 0, SCREEN_HEIGHT - 1) };
-    int bounding_y_max { std::clamp(std::max(std::max(A.y, B.y), C.y), 0 ,SCREEN_HEIGHT - 1 ) };
+    int bounding_y_max { std::clamp(std::max(std::max(A.y, B.y), C.y), 0 ,SCREEN_HEIGHT - 1) };
 
     for (int y { bounding_y_min }; y <= bounding_y_max; y++)
     {
@@ -174,15 +181,33 @@ void draw_triangle(int ax, int ay, int bx, int by, int cx, int cy, std::vector<U
                 )
             };
 
-            if ( bary_coords.x < 0 || bary_coords.y < 0 || bary_coords.z < 0) continue;
-            if (bary_coords.x > 0.001f && bary_coords.y > 0.001f && bary_coords.z > 0.001f) continue;
-            Uint8 r = static_cast<Uint8>(std::clamp(bary_coords.x, 0.0f, 1.0f) * 255.0f);
-            Uint8 g = static_cast<Uint8>(std::clamp(bary_coords.y, 0.0f, 1.0f) * 255.0f);
-            Uint8 b = static_cast<Uint8>(std::clamp(bary_coords.z, 0.0f, 1.0f) * 255.0f);
 
-            Uint32 pixel_color = getColor(r, g, b, 255.f);
+            if (bary_coords.x < 0 || bary_coords.y < 0 || bary_coords.z < 0) continue;
+            int z {
+                static_cast<int>(
+                    bary_coords.x * static_cast<float>(az) +
+                    bary_coords.y * static_cast<float>(bz) +
+                    bary_coords.z * static_cast<float>(cz)
+                )
+            };
+            bary_coords.x = std::clamp(bary_coords.x, 0.0f, 1.0f);
+            bary_coords.y = std::clamp(bary_coords.y, 0.0f, 1.0f);
+            bary_coords.z = std::clamp(bary_coords.z, 0.0f, 1.0f);
+            if (z > z_buffer[y * SCREEN_WIDTH + x])
+            {
+                z_buffer[y * SCREEN_WIDTH + x] = z;
+                auto r = static_cast<Uint8>(bary_coords.x * 255.0f);
+                auto g = static_cast<Uint8>(bary_coords.y * 255.0f);
+                auto b = static_cast<Uint8>(bary_coords.z * 255.0f);
+                // if (std::min({bary_coords.x, bary_coords.y, bary_coords.z}) > 0.1f) continue;
+                // Uint8 a = static_cast<Uint8>(r + g + b);
+                auto depth_intensity = static_cast<Uint8>((static_cast<float>(z) / 65535.0f) * 255.0f);
 
-            pixels[y * SCREEN_WIDTH + x] = pixel_color;
+                Uint32 pixel_color = getColor(depth_intensity, depth_intensity, depth_intensity, 255);
+                pixels[y * SCREEN_WIDTH + x] = pixel_color;
+                // Uint32 pixel_color = getColor(r, g, b, 255);
+
+            }
         }
     }
 }
