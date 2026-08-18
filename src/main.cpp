@@ -23,7 +23,7 @@ void draw_wireframe(const ObjParser::ObjElementData& obj_data, std::vector<Uint3
 void draw_triangle(int ax, int ay, int az, int bx, int by, int bz, int cx, int cy, int cz, std::vector<Uint32>& pixels, std::vector<int>& z_buffer,const Uint32& color);
 
 
-int main(int, char**) {
+int sdf(int, char**) {
     // Initialize SDL3 video subsystem
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::cout << "SDL_Init Error: " << SDL_GetError() << "\n";
