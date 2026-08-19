@@ -5,3 +5,5 @@ src/test.cpp
 test
 CMakeLists.txt
 .clangd
+src/*.obj
+*.obj
