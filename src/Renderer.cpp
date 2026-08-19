@@ -88,10 +88,10 @@ void Renderer::rasterize_triangle(const Vec3& A, const Vec3& B, const Vec3& C)
                 // auto r = static_cast<Uint8>(bary_coords.x * 255.0f);
                 // auto g = static_cast<Uint8>(bary_coords.y * 255.0f);
                 // auto b = static_cast<Uint8>(bary_coords.z * 255.0f);
+                // Uint32 pixel_color { getColor(r, g, b, 255) };
                 // if (std::min({bary_coords.x, bary_coords.y, bary_coords.z}) > 0.1f) continue;
                 // Uint8 a = static_cast<Uint8>(r + g + b);
                 auto depth_intensity = static_cast<Uint8>((z + 1) * 127.5f);
-
                 Uint32 pixel_color = getColor(depth_intensity, depth_intensity, depth_intensity, 255);
                 pixels[y * Renderer::screen_width + x] = pixel_color;
                 // Uint32 pixel_color = getColor(r, g, b, 255);

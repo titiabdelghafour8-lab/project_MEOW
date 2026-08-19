@@ -5,6 +5,8 @@
 #include <iostream>
 
 
+constexpr float PI = 3.1415927;
+
 template<typename T>
 concept Arithmetic = std::is_arithmetic_v<T>;
 
