@@ -1,13 +1,13 @@
+#include "Color.h"
+#include "Math.h"
+#include "OBJParser.h"
+#include "Renderer.h"
+#include <random>
 #include <cmath>
 #include <SDL3/SDL.h>
 #include <vector>
 #include <iostream>
 #include <fstream>
-#include "Color.h"
-#include "Math.h"
-#include "OBJParser.h"
-#include <algorithm>
-#include <random>
 
 constexpr int SCREEN_WIDTH = 800;
 constexpr int SCREEN_HEIGHT = 600;
@@ -17,11 +17,6 @@ const Uint32 COLOR_RED = getColor(255, 0, 0, 255);
 const Uint32 COLOR_YELLOW = COLOR_RED | COLOR_GREEN;
 const Uint32 COLOR_BLUE = getColor(0, 0, 255, 255);
 constexpr float PI = 3.1415927;
-
-
-void draw_line(int ax, int ay, int bx, int by, std::vector<Uint32>& pixels, Uint32 color);
-void draw_wireframe(const ObjParser::ObjElementData& obj_data, std::vector<Uint32>& pixels, std::vector<int>& z_buffer, const Uint32& color);
-void draw_triangle(int ax, int ay, int az, int bx, int by, int bz, int cx, int cy, int cz, std::vector<Uint32>& pixels, std::vector<int>& z_buffer,const Uint32& color);
 
 
 int main(int, char**) {
@@ -56,10 +51,8 @@ int main(int, char**) {
         SCREEN_HEIGHT
     );
 
-    // Allocate a CPU-side pixel buffer for your rasterizer to draw into
-    std::vector<Uint32> pixels(SCREEN_WIDTH * SCREEN_HEIGHT, 0xFF000000); // Initialized to opaque black
-    std::vector<int> z_buffer(SCREEN_WIDTH * SCREEN_HEIGHT, 0);
-
+    // Instantiating the renderer
+    Renderer software_renderer { SCREEN_WIDTH, SCREEN_HEIGHT };
 
     // Load file and its data
     std::ifstream african_head_obj("./src/diablo3_pose.obj");
@@ -82,17 +75,13 @@ int main(int, char**) {
                 is_running = false;
             }
         }
-        std::ranges::fill(pixels, 0xFF000000); //Clear background with black
 
         // TODO: DRAW STUFF
-        std::ranges::fill(z_buffer, 0);
-        // int ax = 400, ay = 100;
-        // int bx = 150, by = 500;
-        // int cx = 650, cy = 500;
-        // draw_triangle(ax, ay, bx, by, cx, cy, pixels, COLOR_RED);
-        draw_wireframe(african_head_data, pixels, z_buffer, COLOR_RED);
+        software_renderer.clear();
+        software_renderer.draw_mesh(african_head_data);
 
-        SDL_UpdateTexture(texture, nullptr, pixels.data(), SCREEN_WIDTH * sizeof(Uint32));
+
+        SDL_UpdateTexture(texture, nullptr, software_renderer.getPixels().data(), SCREEN_WIDTH * sizeof(Uint32));
         SDL_RenderTexture(renderer, texture, nullptr, nullptr);
         SDL_RenderPresent(renderer);
     }
@@ -105,110 +94,4 @@ int main(int, char**) {
     SDL_Quit();
 
     return 0;
-}
-
-void draw_line(int ax, int ay, int bx, int by, std::vector<Uint32>& pixels, Uint32 color)
-{
-    int steep = abs(ay - by) - abs(ax - bx);
-    if (steep > 0)
-    {
-        std::swap(ax, ay);
-        std::swap(bx, by);
-    }
-    int a_precede_b = bx - ax;
-    if (a_precede_b < 0)
-    {
-        std::swap(ay, by);
-        std::swap(ax, bx);
-    }
-    int y { ay };
-    int normalized_error { 0 };
-    for (int x { ax }; x <= bx; x++)
-    {
-        if (steep > 0)
-        {
-            pixels[x * SCREEN_WIDTH + y] = color;
-        }
-        else
-        {
-            pixels[y * SCREEN_WIDTH + x] = color;
-        }
-        normalized_error += 2 * std::abs(by - ay);
-        y += (normalized_error > (bx - ax)) * (ay < by ? 1 : -1);
-        normalized_error -= (normalized_error > (bx - ax)) * 2 * (bx - ax);
-    }
-}
-void draw_wireframe(const ObjParser::ObjElementData& obj_data, std::vector<Uint32>& pixels, std::vector<int>& z_buffer,const Uint32& color)
-{
-    std::vector<std::array<int, 3>> faces { obj_data.faces() };
-
-    for (const auto& face_indices: faces)
-    {
-        Math::Vec3<int> vertex_a {
-            Math::viewport_projection(Math::rotate_y(obj_data.vertices()[face_indices[0]], 0),SCREEN_WIDTH, SCREEN_HEIGHT)
-        };
-        Math::Vec3<int> vertex_b {
-            Math::viewport_projection(Math::rotate_y(obj_data.vertices()[face_indices[1]],0), SCREEN_WIDTH, SCREEN_HEIGHT)
-        };
-        Math::Vec3<int> vertex_c {
-            Math::viewport_projection(Math::rotate_y(obj_data.vertices()[face_indices[2]], 0), SCREEN_WIDTH, SCREEN_HEIGHT)
-        };
-        float triangle_area {
-            Math::calculate_area_triangle(
-            {vertex_a.x, vertex_a.y},
-            {vertex_b.x, vertex_b.y},
-            {vertex_c.x, vertex_c.y})
-        };
-        if (std::abs(triangle_area) < 1.0f) continue;
-        draw_triangle(vertex_a.x, vertex_a.y, vertex_a.z, vertex_b.x, vertex_b.y, vertex_b.z, vertex_c.x, vertex_c.y, vertex_c.z, pixels, z_buffer, COLOR_RED);
-    }
-}
-
-void draw_triangle(int ax, int ay, int az, int bx, int by, int bz, int cx, int cy, int cz, std::vector<Uint32>& pixels, std::vector<int>& z_buffer,const Uint32& color)
-{
-    Math::Vec2<int> A{ax, ay}, B{bx, by}, C{cx, cy};
-    int bounding_x_min { std::clamp(std::min(std::min(A.x, B.x), C.x), 0, SCREEN_WIDTH - 1) };
-    int bounding_x_max { std::clamp(std::max(std::max(A.x, B.x), C.x), 0 ,SCREEN_WIDTH - 1) };
-    int bounding_y_min { std::clamp(std::min(std::min(A.y, B.y), C.y), 0, SCREEN_HEIGHT - 1) };
-    int bounding_y_max { std::clamp(std::max(std::max(A.y, B.y), C.y), 0 ,SCREEN_HEIGHT - 1) };
-
-    for (int y { bounding_y_min }; y <= bounding_y_max; y++)
-    {
-        for (int x { bounding_x_min }; x <= bounding_x_max; x++)
-        {
-            Math::Vec3<float> bary_coords {
-                Math::calculate_bary_coords(
-                    A, B, C, { x, y }
-                )
-            };
-
-
-            if (bary_coords.x < 0 || bary_coords.y < 0 || bary_coords.z < 0) continue;
-            int z {
-                static_cast<int>(
-                    bary_coords.x * static_cast<float>(az) +
-                    bary_coords.y * static_cast<float>(bz) +
-                    bary_coords.z * static_cast<float>(cz)
-                )
-            };
-            bary_coords.x = std::clamp(bary_coords.x, 0.0f, 1.0f);
-            bary_coords.y = std::clamp(bary_coords.y, 0.0f, 1.0f);
-            bary_coords.z = std::clamp(bary_coords.z, 0.0f, 1.0f);
-            if (z > z_buffer[y * SCREEN_WIDTH + x])
-            {
-                z_buffer[y * SCREEN_WIDTH + x] = z;
-                // auto r = static_cast<Uint8>(bary_coords.x * 255.0f);
-                // auto g = static_cast<Uint8>(bary_coords.y * 255.0f);
-                // auto b = static_cast<Uint8>(bary_coords.z * 255.0f);
-                // if (std::min({bary_coords.x, bary_coords.y, bary_coords.z}) > 0.1f) continue;
-                // Uint8 a = static_cast<Uint8>(r + g + b);
-                auto depth_intensity = static_cast<Uint8>((static_cast<float>(z) / 65535.0f) * 255.0f);
-
-                Uint32 pixel_color = getColor(depth_intensity, depth_intensity, depth_intensity, 255);
-                pixels[y * SCREEN_WIDTH + x] = pixel_color;
-                // Uint32 pixel_color = getColor(r, g, b, 255);
-
-            }
-        }
-    }
 }

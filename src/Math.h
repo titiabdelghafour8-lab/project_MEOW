@@ -14,13 +14,15 @@ namespace Math
     template <Arithmetic T>
     struct Vec2 {
         T x, y;
+        Vec2 (T x_value, T  y_value): x{x_value}, y{y_value} {}
+        Vec2(const Vec2<T>& v) = default;
     };
 
     template <Arithmetic T>
     T calculate_determinant2(const Vec2<T>& A, const Vec2<T>& B)
     {
         return (A.x * B.y - B.x * A.y);
-      }
+    }
 
     template <Arithmetic  T>
     struct Vec3
@@ -222,20 +224,20 @@ namespace Math
     }
 
     template <Arithmetic T>
-    T calculate_determinant3(const Vec3<T>& A, const Vec3<T>& B, const Vec3<T>& C)
+    float calculate_determinant3(const Vec3<T>& A, const Vec3<T>& B, const Vec3<T>& C)
     {
         //3x3 Sarrus's rule
         return (A.x * B.y * C.z + B.x * C.y * A.z + C.x * A.y * B.z)
               - (C.x * B.y * A.z + A.x * C.y * B.z + B.x * A.y * C.z);
     }
 
-    inline float calculate_area_triangle(Vec2<int> A, Vec2<int> B, Vec2<int> C)
+    inline float calculate_area_triangle(const Vec2<int>& A, const Vec2<int>& B, const Vec2<int>& C)
     {
-        return 0.5f * static_cast<float>(calculate_determinant3(
+        return 0.5f * calculate_determinant3(
             Vec3<int> {A.x, A.y, 1},
             Vec3<int> {B.x, B.y, 1},
             Vec3<int> {C.x, C.y, 1}
-        ));
+        );
     }
 
 
