@@ -16,6 +16,7 @@ const Uint32 COLOR_GREEN = getColor(0, 255, 0, 255);
 const Uint32 COLOR_RED = getColor(255, 0, 0, 255);
 const Uint32 COLOR_YELLOW = COLOR_RED | COLOR_GREEN;
 const Uint32 COLOR_BLUE = getColor(0, 0, 255, 255);
+constexpr float PI = 3.1415927;
 
 
 void draw_line(int ax, int ay, int bx, int by, std::vector<Uint32>& pixels, Uint32 color);
@@ -23,7 +24,7 @@ void draw_wireframe(const ObjParser::ObjElementData& obj_data, std::vector<Uint3
 void draw_triangle(int ax, int ay, int az, int bx, int by, int bz, int cx, int cy, int cz, std::vector<Uint32>& pixels, std::vector<int>& z_buffer,const Uint32& color);
 
 
-int sdf(int, char**) {
+int main(int, char**) {
     // Initialize SDL3 video subsystem
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::cout << "SDL_Init Error: " << SDL_GetError() << "\n";
@@ -57,7 +58,7 @@ int sdf(int, char**) {
 
     // Allocate a CPU-side pixel buffer for your rasterizer to draw into
     std::vector<Uint32> pixels(SCREEN_WIDTH * SCREEN_HEIGHT, 0xFF000000); // Initialized to opaque black
-    std::vector<int> z_buffer(SCREEN_WIDTH * SCREEN_HEIGHT, -1);
+    std::vector<int> z_buffer(SCREEN_WIDTH * SCREEN_HEIGHT, 0);
 
 
     // Load file and its data
@@ -81,10 +82,10 @@ int sdf(int, char**) {
                 is_running = false;
             }
         }
-        std::fill(pixels.begin(), pixels.end(), 0xFF000000);
+        std::ranges::fill(pixels, 0xFF000000); //Clear background with black
 
         // TODO: DRAW STUFF
-        std::fill(z_buffer.begin(), z_buffer.end(), -1);
+        std::ranges::fill(z_buffer, 0);
         // int ax = 400, ay = 100;
         // int bx = 150, by = 500;
         // int cx = 650, cy = 500;
@@ -144,13 +145,13 @@ void draw_wireframe(const ObjParser::ObjElementData& obj_data, std::vector<Uint3
     for (const auto& face_indices: faces)
     {
         Math::Vec3<int> vertex_a {
-            Math::viewport_projection(obj_data.vertices()[face_indices[0]],SCREEN_WIDTH, SCREEN_HEIGHT)
+            Math::viewport_projection(Math::rotate_y(obj_data.vertices()[face_indices[0]], 0),SCREEN_WIDTH, SCREEN_HEIGHT)
         };
         Math::Vec3<int> vertex_b {
-            Math::viewport_projection(obj_data.vertices()[face_indices[1]], SCREEN_WIDTH, SCREEN_HEIGHT)
+            Math::viewport_projection(Math::rotate_y(obj_data.vertices()[face_indices[1]],0), SCREEN_WIDTH, SCREEN_HEIGHT)
         };
         Math::Vec3<int> vertex_c {
-            Math::viewport_projection(obj_data.vertices()[face_indices[2]], SCREEN_WIDTH, SCREEN_HEIGHT)
+            Math::viewport_projection(Math::rotate_y(obj_data.vertices()[face_indices[2]], 0), SCREEN_WIDTH, SCREEN_HEIGHT)
         };
         float triangle_area {
             Math::calculate_area_triangle(
@@ -158,7 +159,7 @@ void draw_wireframe(const ObjParser::ObjElementData& obj_data, std::vector<Uint3
             {vertex_b.x, vertex_b.y},
             {vertex_c.x, vertex_c.y})
         };
-        if (triangle_area < 1e-5f) continue;
+        if (std::abs(triangle_area) < 1.0f) continue;
         draw_triangle(vertex_a.x, vertex_a.y, vertex_a.z, vertex_b.x, vertex_b.y, vertex_b.z, vertex_c.x, vertex_c.y, vertex_c.z, pixels, z_buffer, COLOR_RED);
     }
 }
@@ -196,9 +197,9 @@ void draw_triangle(int ax, int ay, int az, int bx, int by, int bz, int cx, int c
             if (z > z_buffer[y * SCREEN_WIDTH + x])
             {
                 z_buffer[y * SCREEN_WIDTH + x] = z;
-                auto r = static_cast<Uint8>(bary_coords.x * 255.0f);
-                auto g = static_cast<Uint8>(bary_coords.y * 255.0f);
-                auto b = static_cast<Uint8>(bary_coords.z * 255.0f);
+                // auto r = static_cast<Uint8>(bary_coords.x * 255.0f);
+                // auto g = static_cast<Uint8>(bary_coords.y * 255.0f);
+                // auto b = static_cast<Uint8>(bary_coords.z * 255.0f);
                 // if (std::min({bary_coords.x, bary_coords.y, bary_coords.z}) > 0.1f) continue;
                 // Uint8 a = static_cast<Uint8>(r + g + b);
                 auto depth_intensity = static_cast<Uint8>((static_cast<float>(z) / 65535.0f) * 255.0f);

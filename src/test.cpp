@@ -1,7 +1,7 @@
 #include <iostream>
 #include "Math.h"
 
-int main(int argc, char** argv)
+int something(int argc, char** argv)
 {
     std::cout << "=== Matrix3x3 Full Operations & Print Test ===\n\n";
 

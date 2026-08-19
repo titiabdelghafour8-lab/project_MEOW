@@ -1,24 +1,34 @@
 #pragma once
 #include <cassert>
+#include <cmath>
+#include <type_traits>
+#include <iostream>
+
+
+template<typename T>
+concept Arithmetic = std::is_arithmetic_v<T>;
+
 
 namespace Math
 {
-    template <typename T>
+    template <Arithmetic T>
     struct Vec2 {
         T x, y;
     };
 
-    template <typename T>
+    template <Arithmetic T>
     T calculate_determinant2(const Vec2<T>& A, const Vec2<T>& B)
     {
         return (A.x * B.y - B.x * A.y);
-    }
+      }
 
-    template <typename T>
-    struct Vec3 {
+    template <Arithmetic  T>
+    struct Vec3
+    {
         T x, y, z;
         Vec3<T> operator+ (const Vec3<T>& v2) { return {  this->x + v2.x,  this->y + v2.y, this->z + v2.z }; }
         T operator* (const Vec3<T>& v2) { return (this->x * v2.x + this->y * v2.y + this->z * v2.z); } // this one is for dot product
+        Vec3<T> operator* (const T& lambda) { return {this->x * lambda, this->y * lambda, this->z * lambda}; } // this one is for dot product
         Vec3<T> operator^ (const Vec3<T>& v2)
         {
             return Vec3<T> {
@@ -34,12 +44,12 @@ namespace Math
             return i ? (i == 1 ? y: z) : x;
         }
     };
-    template <typename T>
+    template <Arithmetic  T>
     struct Vec4
     {
         T x, y, z, w;
     };
-    template <typename T>
+    template <Arithmetic   T>
     struct Matrix3x3
     {
         T mat3x3[3][3];
@@ -125,6 +135,14 @@ namespace Math
             }
             return product;
         }
+        Vec3<T> operator* (const Vec3<T>& v) const
+        {
+            return Vec3<T> {
+                mat3x3[0][0] * v.x + mat3x3[0][1] * v.y + mat3x3[0][2] * v.z,
+                mat3x3[1][0] * v.x + mat3x3[1][1] * v.y + mat3x3[1][2] * v.z,
+                mat3x3[2][0] * v.x + mat3x3[2][1] * v.y + mat3x3[2][2] * v.z
+            };
+        }
         Matrix3x3<T> operator-() const {
             Matrix3x3<T> result{};
             for (int i = 0; i < 3; ++i) {
@@ -134,7 +152,7 @@ namespace Math
             }
             return result;
         }
-        Matrix3x3<T> transpose() const
+        [[nodiscard]] Matrix3x3<T> transpose() const
         {
             Matrix3x3<T> transpose {};
             for (int j = 0; j < 3; ++j)
@@ -146,32 +164,32 @@ namespace Math
             }
             return transpose;
         }
-        Matrix3x3<T> inverse() const
+        [[nodiscard]]Matrix3x3<T> inverse() const
         {
             Matrix3x3<T> inverse {};
 
             Vec3<T> a { this->mat3x3[0][0], this->mat3x3[1][0], this->mat3x3[2][0] };
             Vec3<T> b { this->mat3x3[0][1], this->mat3x3[1][1], this->mat3x3[2][1] };
             Vec3<T> c { this->mat3x3[0][2], this->mat3x3[1][2], this->mat3x3[2][2] };
-            T det { a * (b ^ c) };
+            T det_inverse{ 1 / (a * (b ^ c)) };
             Vec3<T> inverse_a { (b ^ c) };
             Vec3<T> inverse_b { (a ^ c) };
             Vec3<T> inverse_c { (a ^ b) };
 
-            inverse = { inverse_a, inverse_b, inverse_c };
+            inverse = { inverse_a  * det_inverse, inverse_b * det_inverse, inverse_c * det_inverse };
 
             return inverse;
         }
     };
 
     /**********************************just for testing*************************************/
-    template <typename T>
+    template <Arithmetic T>
     std::ostream& operator<< (std::ostream& o, const Vec3<T>& v)
     {
         o << "{ " <<v.x << ", " << v.y << ", " << v.z << "}";
         return o;
     }
-    template<typename T>
+    template<Arithmetic   T>
     std::ostream& operator<< (std::ostream& o, const Matrix3x3<T>& M)
     {
         int i { 0 };
@@ -180,7 +198,7 @@ namespace Math
         {
             for (const auto& element: row)
             {
-                std::cout << element << " " << (!(++i % 3) ? "\n": "");
+                o << element << " " << (!(++i % 3) ? "\n": "");
             }
         }
         o << "}";
@@ -193,7 +211,7 @@ namespace Math
 
     // 3D coordinates into 2D pixel positins
 
-inline Vec3<int> viewport_projection(Vec3<float> v, const int width, const int height)
+    inline Vec3<int> viewport_projection(Vec3<float> v, const int width, const int height)
     {
         Vec3<int> projected_pixel_position {
             static_cast<int>((v.x + 1.) * width / 2),
@@ -203,7 +221,7 @@ inline Vec3<int> viewport_projection(Vec3<float> v, const int width, const int h
         return projected_pixel_position;
     }
 
-    template <typename T>
+    template <Arithmetic T>
     T calculate_determinant3(const Vec3<T>& A, const Vec3<T>& B, const Vec3<T>& C)
     {
         //3x3 Sarrus's rule
@@ -212,7 +230,7 @@ inline Vec3<int> viewport_projection(Vec3<float> v, const int width, const int h
     }
 
     inline float calculate_area_triangle(Vec2<int> A, Vec2<int> B, Vec2<int> C)
-{
+    {
         return 0.5f * static_cast<float>(calculate_determinant3(
             Vec3<int> {A.x, A.y, 1},
             Vec3<int> {B.x, B.y, 1},
@@ -234,5 +252,32 @@ inline Vec3<int> viewport_projection(Vec3<float> v, const int width, const int h
         bary_coords.z = calculate_area_triangle(P, A, B) * area_inverse;
 
         return bary_coords;
+    }
+
+    inline Vec3<float> rotate_y(const Vec3<float>& Point, float angle)
+    {
+        Matrix3x3<float> rotation_matrix_y { //NOTE: those are columns not row
+            {std::cos(angle), 0, -std::sin(angle)},
+            {0, 1, 0},
+            {std::sin(angle), 0, std::cos(angle)} };
+        return rotation_matrix_y * Point;
+    }
+    inline Vec3<float> rotate_z(const Vec3<float>& Point, float angle)
+    {
+        Matrix3x3<float> rotation_matrix_z { //NOTE: those are columns not row
+            {1, 0, 0},
+            {0, std::cos(angle), std::sin(angle)},
+            {0, -std::sin(angle), std::cos(angle)}
+        };
+        return rotation_matrix_z * Point;
+    }
+    inline Vec3<float> rotate_x(const Vec3<float>& Point, float angle)
+    {
+        Matrix3x3<float> rotation_matrix_x {
+            {std::cos(angle), std::sin(angle), 0},
+            {-std::sin(angle), std::cos(angle), 0},
+            {0, 0, 1}
+        };
+        return rotation_matrix_x * Point;
     }
 };
