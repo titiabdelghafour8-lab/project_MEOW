@@ -20,6 +20,6 @@ public:
     ~Renderer() = default;
     void draw_mesh(const ObjParser::ObjElementData& obj_data);
     void clear();
-    const std::vector<Uint32>& getPixels() const { return pixels; }
-    const std::vector<int>& getZBuffer() const { return z_buffer; }
+    [[nodiscard]] const std::vector<Uint32>& getPixels() const { return pixels; }
+    [[nodiscard]] const std::vector<int>& getZBuffer() const { return z_buffer; }
 };

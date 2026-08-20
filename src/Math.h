@@ -4,6 +4,18 @@
 #include <type_traits>
 #include <iostream>
 
+/*               CONVENTIONS
+ *
+ *   World: right-handed, X right, Y up, Z toward viewer
+ *   Screen: X right, Y down
+ *   Matrix storage/indexing: [row][column]
+ *   Matrix initializer lists: rows
+ *   Vectors: column vectors
+ *   Transformation: matrix * vector
+ *   Positive rotations: right hand rule
+ *   Depth: larger Z is closer
+ *
+ */
 
 constexpr float PI = 3.1415927;
 
@@ -29,10 +41,12 @@ namespace Math
     template <Arithmetic  T>
     struct Vec3
     {
+        Vec3(const T& x_value, const T& y_value, const T& z_value): x{x_value}, y{y_value}, z{z_value} {}
+        Vec3() = default;
         T x, y, z;
         Vec3<T> operator+ (const Vec3<T>& v2) { return {  this->x + v2.x,  this->y + v2.y, this->z + v2.z }; }
         T operator* (const Vec3<T>& v2) { return (this->x * v2.x + this->y * v2.y + this->z * v2.z); } // this one is for dot product
-        Vec3<T> operator* (const T& lambda) { return {this->x * lambda, this->y * lambda, this->z * lambda}; } // this one is for dot product
+        [[nodiscard]] Vec3<T> scalar (const T& lambda) const { return {this->x * lambda, this->y * lambda, this->z * lambda}; } // this one is for dot product
         Vec3<T> operator^ (const Vec3<T>& v2)
         {
             return Vec3<T> {
@@ -47,6 +61,7 @@ namespace Math
             assert(i >= 0 && i < 3);
             return i ? (i == 1 ? y: z) : x;
         }
+
     };
     template <Arithmetic  T>
     struct Vec4
@@ -100,14 +115,14 @@ namespace Math
         }
         Matrix3x3<T>& operator=(std::initializer_list<Vec3<T>> list)
         {
-            int j { 0 };
-            for (const auto& column: list)
+            int i { 0 };
+            for (const auto& row: list)
             {
-                for (int i = 0; i < 3; i++)
+                for (int j = 0; j < 3; j++)
                 {
-                    this->mat3x3[i][j] = column[i];
+                    this->mat3x3[i][j] = row[j];
                 }
-                j++;
+                i++;
             }
             return *this;
         }
@@ -175,12 +190,12 @@ namespace Math
             Vec3<T> a { this->mat3x3[0][0], this->mat3x3[1][0], this->mat3x3[2][0] };
             Vec3<T> b { this->mat3x3[0][1], this->mat3x3[1][1], this->mat3x3[2][1] };
             Vec3<T> c { this->mat3x3[0][2], this->mat3x3[1][2], this->mat3x3[2][2] };
-            T det_inverse{ 1 / (a * (b ^ c)) };
-            Vec3<T> inverse_a { (b ^ c) };
-            Vec3<T> inverse_b { (a ^ c) };
-            Vec3<T> inverse_c { (a ^ b) };
+            T det_inverse{ T{1} / (a * (b ^ c)) };
+            Vec3<T> inverse_a { (b ^ c).scalar(det_inverse) };
+            Vec3<T> inverse_b { (c ^ a).scalar(det_inverse) };
+            Vec3<T> inverse_c { (a ^ b).scalar(det_inverse) };
 
-            inverse = { inverse_a  * det_inverse, inverse_b * det_inverse, inverse_c * det_inverse };
+            inverse = { inverse_a, inverse_b, inverse_c };
 
             return inverse;
         }
@@ -260,28 +275,33 @@ namespace Math
 
     inline Vec3<float> rotate_y(const Vec3<float>& Point, float angle)
     {
-        Matrix3x3<float> rotation_matrix_y { //NOTE: those are columns not row
-            {std::cos(angle), 0, -std::sin(angle)},
+        Matrix3x3<float> rotation_matrix_y {
+            {std::cos(angle), 0, std::sin(angle)},
             {0, 1, 0},
-            {std::sin(angle), 0, std::cos(angle)} };
+            {-std::sin(angle), 0, std::cos(angle)} };
         return rotation_matrix_y * Point;
-    }
-    inline Vec3<float> rotate_z(const Vec3<float>& Point, float angle)
-    {
-        Matrix3x3<float> rotation_matrix_z { //NOTE: those are columns not row
-            {1, 0, 0},
-            {0, std::cos(angle), std::sin(angle)},
-            {0, -std::sin(angle), std::cos(angle)}
-        };
-        return rotation_matrix_z * Point;
     }
     inline Vec3<float> rotate_x(const Vec3<float>& Point, float angle)
     {
         Matrix3x3<float> rotation_matrix_x {
-            {std::cos(angle), std::sin(angle), 0},
-            {-std::sin(angle), std::cos(angle), 0},
-            {0, 0, 1}
+            {1, 0, 0},
+            {0, std::cos(angle), -std::sin(angle)},
+            {0, std::sin(angle), std::cos(angle)}
         };
         return rotation_matrix_x * Point;
+    }
+    inline Vec3<float> rotate_z(const Vec3<float>& Point, float angle)
+    {
+        Matrix3x3<float> rotation_matrix_z {
+            {std::cos(angle), -std::sin(angle), 0},
+            {std::sin(angle), std::cos(angle), 0},
+            {0, 0, 1}
+        };
+        return rotation_matrix_z * Point;
+    }
+    inline Vec3<float> perspective_projection(const Vec3<float>& v, const Vec3<float>& camera_position)
+    {
+        const float scale { camera_position.z / (camera_position.z - v.z) };
+        return { v.x * scale, v.y * scale, v.z };
     }
 };

@@ -5,8 +5,9 @@
 #include <algorithm>
 #include "OBJParser.h"
 #include <SDL3/SDL_stdinc.h>
+#include <cmath>
 
-
+using Vec3 = Math::Vec3<float>;
 
 Renderer::Renderer(int width, int height)
     : screen_width(width),
@@ -19,7 +20,7 @@ Renderer::Renderer(int width, int height)
 void Renderer::clear()
 {
     std::ranges::fill(pixels, 0xFF000000);
-    std::ranges::fill(z_buffer, 0);
+    std::ranges::fill(z_buffer, -1);
 }
 
 void Renderer::draw_mesh(const ObjParser::ObjElementData& obj_data)
@@ -43,14 +44,26 @@ void Renderer::draw_mesh(const ObjParser::ObjElementData& obj_data)
 
 void Renderer::rasterize_triangle(const Vec3& A, const Vec3& B, const Vec3& C)
 {
+    float rotation_angle { PI/6 }; // In radian
+    Vec3 camera_position { 0, 0, 3 };
+    Vec3 transformed_A { Math::rotate_y(A, rotation_angle) };
+    Vec3 transformed_B { Math::rotate_y(B, rotation_angle) };
+    Vec3 transformed_C { Math::rotate_y(C, rotation_angle) };
     Math::Vec3<int> projected_A {
-        Math::viewport_projection(A, Renderer::screen_width, Renderer::screen_height)
+            Math::viewport_projection(Math::perspective_projection(transformed_A, camera_position),
+            Renderer::screen_width,
+            Renderer::screen_height)
     };
     Math::Vec3<int> projected_B {
-        Math::viewport_projection(B, Renderer::screen_width, Renderer::screen_height)
+            Math::viewport_projection(Math::perspective_projection(transformed_B, camera_position),
+            Renderer::screen_width,
+            Renderer::screen_height)
     };
     Math::Vec3<int> projected_C {
-        Math::viewport_projection(C, Renderer::screen_width, Renderer::screen_height)
+            Math::viewport_projection(Math::perspective_projection(transformed_C, camera_position),
+            Renderer::screen_width,
+            Renderer::screen_height
+            )
     };
     int bounding_x_min { std::clamp(std::min(std::min(projected_A.x, projected_B.x), projected_C.x), 0, Renderer::screen_width - 1) };
     int bounding_x_max { std::clamp(std::max(std::max(projected_A.x, projected_B.x), projected_C.x), 0 ,Renderer::screen_width - 1) };
@@ -70,18 +83,21 @@ void Renderer::rasterize_triangle(const Vec3& A, const Vec3& B, const Vec3& C)
                 )
             };
 
-
             if (bary_coords.x < 0 || bary_coords.y < 0 || bary_coords.z < 0) continue;
-            float z {
-                    bary_coords.x * A.z +
-                    bary_coords.y * B.z +
-                    bary_coords.z * C.z
-            };
+
             bary_coords.x = std::clamp(bary_coords.x, 0.0f, 1.0f);
             bary_coords.y = std::clamp(bary_coords.y, 0.0f, 1.0f);
             bary_coords.z = std::clamp(bary_coords.z, 0.0f, 1.0f);
+
+            float z {
+                bary_coords.x * transformed_A.z +
+                bary_coords.y * transformed_B.z +
+                bary_coords.z * transformed_C.z
+            };
+
             float z_precision { 65535.f / 2.f };
             int projected_z { static_cast<int>((z + 1) * z_precision) };
+
             if (projected_z > z_buffer[y * Renderer::screen_width + x])
             {
                 z_buffer[y * Renderer::screen_width + x] = projected_z;
@@ -91,7 +107,7 @@ void Renderer::rasterize_triangle(const Vec3& A, const Vec3& B, const Vec3& C)
                 // Uint32 pixel_color { getColor(r, g, b, 255) };
                 // if (std::min({bary_coords.x, bary_coords.y, bary_coords.z}) > 0.1f) continue;
                 // Uint8 a = static_cast<Uint8>(r + g + b);
-                auto depth_intensity = static_cast<Uint8>((z + 1) * 127.5f);
+                auto depth_intensity = static_cast<Uint8>((z + 1) * 127.5f) ;
                 Uint32 pixel_color = getColor(depth_intensity, depth_intensity, depth_intensity, 255);
                 pixels[y * Renderer::screen_width + x] = pixel_color;
                 // Uint32 pixel_color = getColor(r, g, b, 255);

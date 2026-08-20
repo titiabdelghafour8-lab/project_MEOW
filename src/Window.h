@@ -56,13 +56,16 @@ public:
         SDL_Quit();
     };
 
-    bool poll_event(SDL_Event event)
+    static bool poll_event(SDL_Event& event)
     {
         return SDL_PollEvent(&event);
     }
-    void present(const std::vector<Uint32>& pixels, int width) const
+    void present(const std::vector<Uint32>& pixels) const
     {
-        SDL_UpdateTexture(texture, nullptr, pixels.data(),width * sizeof(Uint32));
+        int width;
+        int height;
+        SDL_GetWindowSize(window, &width, &height);
+        SDL_UpdateTexture(texture, nullptr, pixels.data(), width * sizeof(Uint32));
         SDL_RenderTexture(renderer, texture, nullptr, nullptr);
         SDL_RenderPresent(renderer);
     }

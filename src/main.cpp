@@ -17,7 +17,7 @@ int main(int, char**) {
     Renderer software_renderer { SCREEN_WIDTH, SCREEN_HEIGHT };
 
     // Load file and its data
-    std::ifstream african_head_obj("./src/diablo3_pose.obj");
+    std::ifstream african_head_obj("./assets/diablo3_pose.obj");
     if (!african_head_obj.is_open())
     {
         std::cout << "Could not open file: " << SDL_GetError() << "\n";
@@ -31,7 +31,7 @@ int main(int, char**) {
 
     while (is_running) {
         SDL_Event event;
-        while (window.poll_event(event))
+        while (Window::poll_event(event))
         {
             if (event.type == SDL_EVENT_QUIT)
             {
@@ -43,7 +43,7 @@ int main(int, char**) {
         software_renderer.draw_mesh(african_head_data);
 
         //present on the window
-        window.present(software_renderer.getPixels(), SCREEN_WIDTH);
+        window.present(software_renderer.getPixels());
     }
     return 0;
 }
