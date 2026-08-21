@@ -41,13 +41,18 @@ namespace Math
     template <Arithmetic  T>
     struct Vec3
     {
+        T x {};
+        T y {};
+        T z {};
         Vec3(const T& x_value, const T& y_value, const T& z_value): x{x_value}, y{y_value}, z{z_value} {}
+
         Vec3() = default;
-        T x, y, z;
-        Vec3<T> operator+ (const Vec3<T>& v2) { return {  this->x + v2.x,  this->y + v2.y, this->z + v2.z }; }
+
+        Vec3<T> operator+ (const Vec3<T>& v2) const { return { this->x + v2.x, this->y + v2.y, this->z + v2.z }; }
+        Vec3<T> operator- (const Vec3<T>& v2) const { return { this->x - v2.x, this->y - v2.y, this->z - v2.z }; }
         T operator* (const Vec3<T>& v2) { return (this->x * v2.x + this->y * v2.y + this->z * v2.z); } // this one is for dot product
         [[nodiscard]] Vec3<T> scalar (const T& lambda) const { return {this->x * lambda, this->y * lambda, this->z * lambda}; } // this one is for dot product
-        Vec3<T> operator^ (const Vec3<T>& v2)
+        Vec3<T> operator^ (const Vec3<T>& v2) const
         {
             return Vec3<T> {
                 calculate_determinant2<T>({this->y, this->z}, { v2.y, v2.z }),
@@ -55,7 +60,18 @@ namespace Math
                 calculate_determinant2<T>({this->x, this->y}, { v2.x, v2.y })
             };
         }
-
+        Vec3& operator= (const Vec3<T>& v) = default;
+        float length()
+        {
+            return std::sqrt(this->x * this->x + this->y * this->y + this->z * this->z);
+        }
+        void normalize()
+        {
+            float length_inverse { this->length() == 0 ? 1 : 1 / this->length() };
+            this->x = this->x * length_inverse;
+            this->y = this->y * length_inverse;
+            this->z = this->z * length_inverse;
+        };
         T operator[] (int i) const
         {
             assert(i >= 0 && i < 3);
@@ -66,12 +82,40 @@ namespace Math
     template <Arithmetic  T>
     struct Vec4
     {
-        T x, y, z, w;
+        T x{};
+        T y{};
+        T z{};
+        T w{};
+        Vec4(const T& x_value, const T& y_value, const T& z_value, const T& w_value)
+            : x{x_value}, y{y_value}, z{z_value}, w{w_value} {}
+
+        Vec4() = default;
+
+        Vec4<T> operator+(const Vec4<T>& v2) const
+        {
+            return { x + v2.x, y + v2.y, z + v2.z, w + v2.w };
+        }
+
+        T operator*(const Vec4<T>& v2) const
+        {
+            return x * v2.x + y * v2.y + z * v2.z + w * v2.w;
+        }
+
+        [[nodiscard]] Vec4<T> scalar(const T& lambda) const
+        {
+            return { x * lambda, y * lambda, z * lambda, w * lambda };
+        }
+
+        T operator[](int i) const
+        {
+            assert(i >= 0 && i < 4);
+            return i == 0 ? x : (i == 1 ? y : (i == 2 ? z : w));
+        }
     };
     template <Arithmetic   T>
     struct Matrix3x3
     {
-        T mat3x3[3][3];
+        T mat3x3[3][3] {};
 
         Matrix3x3() = default;
 
@@ -115,6 +159,7 @@ namespace Math
         }
         Matrix3x3<T>& operator=(std::initializer_list<Vec3<T>> list)
         {
+            assert(list.size() == 3);
             int i { 0 };
             for (const auto& row: list)
             {
@@ -201,6 +246,115 @@ namespace Math
         }
     };
 
+    template <Arithmetic T>
+    struct Matrix4x4
+    {
+        T mat4x4[4][4] {};
+
+        Matrix4x4() = default;
+        Matrix4x4(const Matrix4x4<T>& M) = default;
+        Matrix4x4<T>& operator=(const Matrix4x4<T>& M) = default;
+
+        Matrix4x4(std::initializer_list<std::initializer_list<T>> list)
+        {
+            int row { 0 };
+            for (const auto& row_values: list)
+            {
+                if (row >= 4) break;
+
+                int column { 0 };
+                for (const auto& value: row_values)
+                {
+                    if (column >= 4) break;
+                    mat4x4[row][column] = value;
+                    column++;
+                }
+                row++;
+            }
+        }
+
+        Matrix4x4<T>& operator=(std::initializer_list<Vec4<T>> list)
+        {
+            int row { 0 };
+            for (const auto& row_vector: list)
+            {
+                if (row >= 4) break;
+
+                mat4x4[row][0] = row_vector.x;
+                mat4x4[row][1] = row_vector.y;
+                mat4x4[row][2] = row_vector.z;
+                mat4x4[row][3] = row_vector.w;
+                row++;
+            }
+            return *this;
+        }
+
+        Matrix4x4<T> operator+(const Matrix4x4<T>& M) const
+        {
+            Matrix4x4<T> sum {};
+            for (int row = 0; row < 4; row++)
+            {
+                for (int column = 0; column < 4; column++)
+                {
+                    sum.mat4x4[row][column] = mat4x4[row][column] + M.mat4x4[row][column];
+                }
+            }
+            return sum;
+        }
+
+        Matrix4x4<T> operator*(const Matrix4x4<T>& M) const
+        {
+            Matrix4x4<T> product {};
+            for (int row = 0; row < 4; row++)
+            {
+                for (int column = 0; column < 4; column++)
+                {
+                    for (int k = 0; k < 4; k++)
+                    {
+                        product.mat4x4[row][column] += mat4x4[row][k] * M.mat4x4[k][column];
+                    }
+                }
+            }
+            return product;
+        }
+
+        Vec4<T> operator*(const Vec4<T>& v) const
+        {
+            return {
+                mat4x4[0][0] * v.x + mat4x4[0][1] * v.y + mat4x4[0][2] * v.z + mat4x4[0][3] * v.w,
+                mat4x4[1][0] * v.x + mat4x4[1][1] * v.y + mat4x4[1][2] * v.z + mat4x4[1][3] * v.w,
+                mat4x4[2][0] * v.x + mat4x4[2][1] * v.y + mat4x4[2][2] * v.z + mat4x4[2][3] * v.w,
+                mat4x4[3][0] * v.x + mat4x4[3][1] * v.y + mat4x4[3][2] * v.z + mat4x4[3][3] * v.w
+            };
+        }
+
+        Matrix4x4<T> operator-() const
+        {
+            Matrix4x4<T> result {};
+            for (int row = 0; row < 4; row++)
+            {
+                for (int column = 0; column < 4; column++)
+                {
+                    result.mat4x4[row][column] = -mat4x4[row][column];
+                }
+            }
+            return result;
+        }
+
+        [[nodiscard]] Matrix4x4<T> transpose() const
+        {
+            Matrix4x4<T> result {};
+            for (int row = 0; row < 4; row++)
+            {
+                for (int column = 0; column < 4; column++)
+                {
+                    result.mat4x4[row][column] = mat4x4[column][row];
+                }
+            }
+            return result;
+        }
+    };
+
     /**********************************just for testing*************************************/
     template <Arithmetic T>
     std::ostream& operator<< (std::ostream& o, const Vec3<T>& v)
@@ -208,7 +362,14 @@ namespace Math
         o << "{ " <<v.x << ", " << v.y << ", " << v.z << "}";
         return o;
     }
-    template<Arithmetic   T>
+    template <Arithmetic T>
+    std::ostream& operator<< (std::ostream& o, const Vec4<T>& v)
+    {
+        o << "{ " << v.x << ", " << v.y << ", " << v.z << ", " << v.w << "}";
+        return o;
+    }
+
+    template<Arithmetic T>
     std::ostream& operator<< (std::ostream& o, const Matrix3x3<T>& M)
     {
         int i { 0 };
@@ -223,6 +384,21 @@ namespace Math
         o << "}";
         return o;
     }
+    template<Arithmetic T>
+    std::ostream& operator<< (std::ostream& o, const Matrix4x4<T>& M)
+    {
+        o << "{\n";
+        for (const auto& row: M.mat4x4)
+        {
+            for (const auto& element: row)
+            {
+                o << element << " ";
+            }
+            o << "\n";
+        }
+        o << "}";
+        return o;
+    }
 
 
     /*************************************************************************************/
@@ -230,19 +406,77 @@ namespace Math
 
     // 3D coordinates into 2D pixel positins
 
+// PROJECTIONS
+
     inline Vec3<int> viewport_projection(Vec3<float> v, const int width, const int height)
     {
-        Vec3<int> projected_pixel_position {
-            static_cast<int>((v.x + 1.) * width / 2),
-            static_cast<int>(height - (v.y + 1.) * height / 2),
-            static_cast<int>((v.z + 1.) * 65535 / 2) // 65535 is for 16 bit precision, completely arbitrary!
+        v.y = -v.y; //flipping y before projecting
+        Matrix4x4<float> viewport_matrix
+        {
+            { static_cast<float>(width) * 0.5f, 0, 0, static_cast<float>(width) * 0.5f},
+            { 0, static_cast<float>(height) * 0.5f, 0, static_cast<float>(height) * 0.5f},
+            { 0, 0, 1, 0 },
+            { 0, 0, 0, 1 }
         };
-        return projected_pixel_position;
+        const Vec4<float> projected {
+            viewport_matrix * Vec4<float> { v.x, v.y, v.z, 1 }
+        };
+        return {
+            static_cast<int>(projected.x),
+            static_cast<int>(projected.y),
+            static_cast<int>(projected.z)
+        };
     }
+
+    inline Vec3<float> perspective_projection(const Vec3<float>& v, float f)
+    {
+        Matrix4x4<float> perspective_matrix
+        {
+            { 1, 0, 0, 0 },
+            { 0, 1, 0, 0 },
+            { 0, 0, 1, 0 },
+            { 0, 0, -1/f, 1 }
+        };
+        Vec4<float> projected
+        {
+            perspective_matrix * Vec4<float>{ v.x, v.y, v.z, 1 }
+        };
+        return { projected.x/projected.w , projected.y/projected.w , projected.z/projected.w };
+    }
+
+    inline Vec3<float> look_at(const Vec3<float>& center, const Vec3<float>& camera_eye, const Vec3<float>& up, const Vec3<float>& point)
+    {
+        Vec3<float> n { camera_eye - center };
+        n.normalize();
+        Vec3<float> l { (up ^ n) };
+        l.normalize();
+        Vec3<float> m { (n ^ l) };
+        m.normalize();
+
+        Matrix4x4<float> change_of_basis{
+            {l.x, l.y, l.z, 0.0f},
+            {m.x, m.y, m.z, 0.0f},
+            {n.x, n.y, n.z, 0.0f},
+            {0.0f, 0.0f, 0.0f, 1.0f}
+        };
+        Matrix4x4<float> translation{
+            {1.0f, 0.0f, 0.0f, -center.x},
+            {0.0f, 1.0f, 0.0f, -center.y},
+            {0.0f, 0.0f, 1.0f, -center.z},
+            {0.0f, 0.0f, 0.0f, 1.0f}
+        };
+        Matrix4x4<float> look_at_matrix { change_of_basis * translation };
+
+        Vec4<float> projected { look_at_matrix * Vec4<float> { point.x, point.y, point.z, 1 } };
+        return { projected.x, projected.y, projected.z };
+    }
+
+// CALCULATIONS
 
     template <Arithmetic T>
     float calculate_determinant3(const Vec3<T>& A, const Vec3<T>& B, const Vec3<T>& C)
     {
+
         //3x3 Sarrus's rule
         return (A.x * B.y * C.z + B.x * C.y * A.z + C.x * A.y * B.z)
               - (C.x * B.y * A.z + A.x * C.y * B.z + B.x * A.y * C.z);
@@ -256,7 +490,6 @@ namespace Math
             Vec3<int> {C.x, C.y, 1}
         );
     }
-
 
 
     inline Vec3<float> calculate_bary_coords(const Vec2<int>& A, const Vec2<int>& B, const Vec2<int>& C, const Vec2<int>& P)
@@ -273,6 +506,8 @@ namespace Math
         return bary_coords;
     }
 
+// TRANSFORMATIONS
+
     inline Vec3<float> rotate_y(const Vec3<float>& Point, float angle)
     {
         Matrix3x3<float> rotation_matrix_y {
@@ -281,6 +516,7 @@ namespace Math
             {-std::sin(angle), 0, std::cos(angle)} };
         return rotation_matrix_y * Point;
     }
+
     inline Vec3<float> rotate_x(const Vec3<float>& Point, float angle)
     {
         Matrix3x3<float> rotation_matrix_x {
@@ -290,6 +526,7 @@ namespace Math
         };
         return rotation_matrix_x * Point;
     }
+
     inline Vec3<float> rotate_z(const Vec3<float>& Point, float angle)
     {
         Matrix3x3<float> rotation_matrix_z {
@@ -298,10 +535,5 @@ namespace Math
             {0, 0, 1}
         };
         return rotation_matrix_z * Point;
-    }
-    inline Vec3<float> perspective_projection(const Vec3<float>& v, const Vec3<float>& camera_position)
-    {
-        const float scale { camera_position.z / (camera_position.z - v.z) };
-        return { v.x * scale, v.y * scale, v.z };
     }
 };
