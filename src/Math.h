@@ -428,7 +428,7 @@ namespace Math
         };
     }
 
-    inline Vec3<float> perspective_projection(const Vec3<float>& v, float f)
+    inline Vec4<float> perspective_projection(const Vec3<float>& v, float f)
     {
         Matrix4x4<float> perspective_matrix
         {
@@ -441,7 +441,7 @@ namespace Math
         {
             perspective_matrix * Vec4<float>{ v.x, v.y, v.z, 1 }
         };
-        return { projected.x/projected.w , projected.y/projected.w , projected.z/projected.w };
+        return projected;
     }
 
     inline Vec3<float> look_at(const Vec3<float>& center, const Vec3<float>& camera_eye, const Vec3<float>& up, const Vec3<float>& point)

@@ -5,6 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include "Window.h"
+#include "Math.h"
 
 
 constexpr int SCREEN_WIDTH = 800;

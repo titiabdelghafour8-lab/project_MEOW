@@ -6,8 +6,56 @@
 #include "OBJParser.h"
 #include <SDL3/SDL_stdinc.h>
 #include <limits>
+#include <array>
 
 using Vec3 = Math::Vec3<float>;
+using Vec4 = Math::Vec4<float>;
+
+namespace
+{
+    constexpr float near_clip_w { 0.01f };
+
+    Vec4 interpolate_at_near_plane(const Vec4& a, const Vec4& b)
+    {
+        const float t { (near_clip_w - a.w) / (b.w - a.w) };
+        return {
+            a.x + (b.x - a.x) * t,
+            a.y + (b.y - a.y) * t,
+            a.z + (b.z - a.z) * t,
+            a.w + (b.w - a.w) * t
+        };
+    }
+
+    std::vector<Vec4> clip_triangle_against_near_plane(const std::array<Vec4, 3>& triangle)
+    {
+        std::vector<Vec4> clipped;
+        clipped.reserve(4);
+
+        Vec4 previous { triangle.back() };
+        bool previous_inside { previous.w >= near_clip_w };
+
+        for (const Vec4& current : triangle)
+        {
+            const bool current_inside { current.w >= near_clip_w };
+
+            if (current_inside != previous_inside)
+                clipped.push_back(interpolate_at_near_plane(previous, current));
+
+            if (current_inside)
+                clipped.push_back(current);
+
+            previous = current;
+            previous_inside = current_inside;
+        }
+
+        return clipped;
+    }
+
+    Vec3 perspective_divide(const Vec4& vertex)
+    {
+        return { vertex.x / vertex.w, vertex.y / vertex.w, vertex.z / vertex.w };
+    }
+}
 
 Renderer::Renderer(int width, int height)
     : screen_width(width),
@@ -23,32 +71,31 @@ void Renderer::clear()
     std::ranges::fill(z_buffer, -std::numeric_limits<double>::infinity());
 }
 
-void project_vertex_persp(const Vec3& eye, Vec3& vertex, const Vec3& center, const Vec3& up)
-{
-    vertex = Math::perspective_projection(Math::look_at(center, eye, up, vertex), (eye - center).length());
-}
 void Renderer::draw_mesh(const ObjParser::ObjElementData& obj_data)
 {
     std::vector<std::array<int, 3>> faces { obj_data.faces() };
-    const Vec3    eye{-1,0,2}; // camera position
-    const Vec3 center{0,0,0};  // camera direction
-    const Vec3     up{0,1,0};  // camera up vector
 
     for (const auto& face_indices: faces)
     {
-        Math::Vec3<float> vertex_a {
-            obj_data.vertices()[face_indices[0]]
+        Vec3   eye{-1,0,2}; // camera position
+        Vec3    center{0,0,0};  // camera direction
+        Vec3    up{0,1,0};  // camera up vector
+        const float focal_distance { (eye - center).length() };
+        const std::array<Vec4, 3> triangle {
+            Math::perspective_projection(Math::look_at(center, eye, up, obj_data.vertices()[face_indices[0]]), focal_distance),
+            Math::perspective_projection(Math::look_at(center, eye, up, obj_data.vertices()[face_indices[1]]), focal_distance),
+            Math::perspective_projection(Math::look_at(center, eye, up, obj_data.vertices()[face_indices[2]]), focal_distance)
         };
-        project_vertex_persp(eye, vertex_a, center, up);
-        Math::Vec3<float> vertex_b {
-            obj_data.vertices()[face_indices[1]]
-        };
-        project_vertex_persp(eye, vertex_b, center, up);
-        Math::Vec3<float> vertex_c {
-            obj_data.vertices()[face_indices[2]]
-        };
-        project_vertex_persp(eye, vertex_c, center, up);
-        Renderer::rasterize_triangle( {vertex_a.x, vertex_a.y, vertex_a.z} , {vertex_b.x, vertex_b.y, vertex_b.z} , {vertex_c.x, vertex_c.y, vertex_c.z});
+
+        const std::vector<Vec4> clipped { clip_triangle_against_near_plane(triangle) };
+        for (std::size_t i { 1 }; i + 1 < clipped.size(); ++i)
+        {
+            Renderer::rasterize_triangle(
+                perspective_divide(clipped[0]),
+                perspective_divide(clipped[i]),
+                perspective_divide(clipped[i + 1])
+            );
+        }
     }
 }
 void Renderer::rasterize_triangle(const Vec3& A, const Vec3& B, const Vec3& C)
